@@ -37,7 +37,6 @@ See the full license in the file "LICENSE" in the top level distribution directo
 #include <Hadrons/ModuleFactory.hpp>
 #include <Hadrons/Modules/MSource/Point.hpp>
 #include <Hadrons/Solver.hpp>
-//#include <Hadrons/utils_memory.h>
 
 BEGIN_HADRONS_NAMESPACE
 
@@ -135,9 +134,9 @@ template <typename FImpl1, typename FImpl2>
 void TStagMesonCCLoop<FImpl1, FImpl2>::setup(void)
 {
     envTmpLat(LatticeComplex, "corr");
-    envTmpLat(LatticePropagator, "q1");
-    envTmpLat(LatticePropagator, "q2");
-    envTmpLat(LatticePropagator, "qshift");
+    envTmpLat(PropagatorField1, "q1");
+    envTmpLat(PropagatorField2, "q2");
+    envTmpLat(PropagatorField1, "qshift");
     envTmpLat(FermionField, "source");
     envTmpLat(FermionField, "sol");
     
@@ -157,6 +156,7 @@ void TStagMesonCCLoop<FImpl1, FImpl2>::setup(void)
     herm_phase = 1.0;
     s=x+y+z+t;
     herm_phase = where( mod(s,2)==(Integer)0, herm_phase, -herm_phase);
+    //printMem("MesonCCLoop setup() end", env().getGrid()->ThisRank());
 }
 
 // execution ///////////////////////////////////////////////////////////////////
@@ -180,9 +180,9 @@ void TStagMesonCCLoop<FImpl1, FImpl2>::execute(void)
     
     envGetTmp(LatticeComplex, corr);
     envGetTmp(LatticeComplex, herm_phase);
-    PropagatorField1 q1(U.Grid());
-    PropagatorField2 q2(U.Grid());
-    PropagatorField1 qshift(U.Grid());
+    envGetTmp(PropagatorField1, q1);
+    envGetTmp(PropagatorField2, q2);
+    envGetTmp(PropagatorField1, qshift);
     
     // Do spatial gamma's only
     Lattice<iScalar<vInteger> > x(U.Grid()); LatticeCoordinate(x,0);

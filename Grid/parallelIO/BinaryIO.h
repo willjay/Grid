@@ -358,8 +358,8 @@ class BinaryIO {
           ierr=MPI_File_set_view(fh, disp, mpiObject, fileArray, "native", MPI_INFO_NULL);    assert(ierr==0);
           ierr=MPI_File_read_all(fh, &iodata[0], 1, localArray, &status);    assert(ierr==0);
           MPI_File_close(&fh);
-          MPI_Type_free(&fileArray);
           MPI_Type_free(&localArray);
+          MPI_Type_free(&fileArray);
 #else 
           assert(0);
 #endif
