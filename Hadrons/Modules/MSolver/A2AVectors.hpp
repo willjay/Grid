@@ -55,6 +55,7 @@ public:
                                   std::string, solver,
                                   std::string, output,
                                   double, mass,
+                                  int start,
                                   bool,        multiFile);
 };
 
@@ -723,12 +724,12 @@ void TStagNoEvalA2AVectors<FImpl, Pack>::execute(void)
     LOG(Message) << "Computing all-to-all vectors "
     << " using eigenpack '" << par().eigenPack << "' ("
     << 2*Nl_ << " low modes) '" << std::endl;
-    
+    int end = start + Nl_;
     //save for later
     std::vector<complex<double>> evalM(2*Nl_);
     
     // Low modes
-    for (unsigned int il = 0; il < Nl_; il++)
+    for (unsigned int il = par().start; il < end; il++)
     {
         auto &epack  = envGet(Pack, par().eigenPack);
         
@@ -748,32 +749,8 @@ void TStagNoEvalA2AVectors<FImpl, Pack>::execute(void)
         else
         {
             assert(0);
-            //envGetTmp(FermionField, f5);
-            //a2a.makeLowModeV5D(v[2*il], f5, epack.evec[il], eval);
-            // construct -lambda evec
-            //a2a.makeLowModeV5D(v[2*il+1], f5, epack.evec[il], eval, 1);
         }
-        //LOG(Message) << v[2*il] << std::endl;
         stopTimer("V low mode");
-        
-        startTimer("W low mode");
-        LOG(Message) << "W vector i = " << il << " (low mode)" << std::endl;
-        if (Ls == 1)
-        {
-            a2a.makeLowModeW(w[2*il], epack.evec[il], eval);
-            // construct -lambda evec
-            a2a.makeLowModeW(w[2*il+1], epack.evec[il], eval, 1);
-        }
-        else
-        {
-            assert(0);
-            //envGetTmp(FermionField, f5);
-            //a2a.makeLowModeW5D(w[2*il], f5, epack.evec[il], eval);
-            // construct -lambda evec
-            //a2a.makeLowModeW5D(w[2*il+1], f5, epack.evec[il], eval, 1);
-        }
-        //LOG(Message) << w[2*il] << std::endl;
-        stopTimer("W low mode");
     }
     
     // I/O if necessary
