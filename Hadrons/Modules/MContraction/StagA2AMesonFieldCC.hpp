@@ -49,7 +49,9 @@ public:
     GRID_SERIALIZABLE_CLASS_MEMBERS(StagA2AMesonFieldCCPar,
                                     int, cacheBlock,
                                     int, block,
-                                    int, size,
+                                    int, Size,
+                                    int, istart,
+                                    int, jstart,
                                     std::string, gauge,
                                     std::string, left,
                                     std::string, right,
@@ -227,9 +229,7 @@ void TStagA2AMesonFieldCC<FImpl>::setup(void)
     envTmp(Computation, "computation", 1, envGetGrid(FermionField), 
            env().getNd() - 1, mom_.size(), gamma_.size(), par().block, 
            par().cacheBlock, this);
-    //printMem("StagMesonFieldCC setup(): after envTmp ", env().getGrid()->ThisRank());
-    //envCreate(std::vector<FermionField>, "v_shift", 1, par().size, envGetGrid(FermionField));
-    //printMem("End StagMesonFieldCC setup() ", env().getGrid()->ThisRank());
+    //printMem("StagMesonFieldCC setup() End ", env().getGrid()->ThisRank());
 }
 
 // execution ///////////////////////////////////////////////////////////////////
@@ -237,13 +237,12 @@ template <typename FImpl>
 void TStagA2AMesonFieldCC<FImpl>::execute(void)
 {
     auto &left  = envGet(std::vector<FermionField>, par().left);
+    int N_i        = left.size();
     auto &right = envGet(std::vector<FermionField>, par().right);
-    //auto &shift = envGet(std::vector<FermionField>, "v_shift");
+    int N_j        = right.size();
+    
     auto &U = envGet(LatticeGaugeField, par().gauge);
     int nt         = env().getDim().back();
-    int N_i        = left.size();
-    int N_j        = right.size();
-    //assert(shift.size() == N_j);
     int ngamma     = gamma_.size();
     assert(ngamma==1);// do one at a time
     int nmom       = mom_.size();
@@ -322,15 +321,10 @@ void TStagA2AMesonFieldCC<FImpl>::execute(void)
         return md;
     };
 
-    // Do spatial gamma's only
-    // Staggered Phases.
-    //Lattice<iScalar<vInteger> > coor(U.Grid());
+    // Staggered Phases. Do spatial gamma's only
     Lattice<iScalar<vInteger> > x(U.Grid()); LatticeCoordinate(x,0);
     Lattice<iScalar<vInteger> > y(U.Grid()); LatticeCoordinate(y,1);
-    //Lattice<iScalar<vInteger> > z(U.Grid()); LatticeCoordinate(z,2);
-    //Lattice<iScalar<vInteger> > t(U.Grid()); LatticeCoordinate(t,3);
     Lattice<iScalar<vInteger> > lin_z(U.Grid()); lin_z=x+y;
-    //Lattice<iScalar<vInteger> > lin_t(U.Grid()); lin_t=x+y+z;
     ComplexField phases(U.Grid());
     phases=1.0;
     int mu;
@@ -342,25 +336,24 @@ void TStagA2AMesonFieldCC<FImpl>::execute(void)
         mu=2;
         phases = where( mod(lin_z,2)==(Integer)0, phases,-phases);
     } else assert(0);
-    //if ( mu == 3 ) phases = where( mod(lin_t,2)==(Integer)0, phases,-phases);
-    // U_mu(x) right(x+mu)
+    
     LatticeColourMatrix Umu(U.Grid());
     Umu = PeekIndex<LorentzIndex>(U,mu);
     Umu *= phases;
    
-    FermionField temp(right[0].Grid()); 
+    // point-split right, mult by link for CC
+    std::vector<FermionField> temp(N_j,right[0].Grid());
+
     for(int j=0;j<N_j;j++){
-        temp = Umu*Cshift(right[j], mu, 1);
-        right[j]=temp;
-        //LOG(Message) << "V " << j << std::endl;
-        //LOG(Message) << right[j] << std::endl;
-        //LOG(Message) << "W " << j << std::endl;
-        //LOG(Message) << left[j] << std::endl;
+        temp[j] = Umu*Cshift(right[j], mu, 1);
     }
+    
     Kernel      kernel(gamma_, ph, envGetGrid(FermionField));
 
     envGetTmp(Computation, computation);
-    computation.execute(left, right, kernel, ionameFn, filenameFn, metadataFn);
+    computation.execute(left, temp, kernel,
+                        par().istart, par().jstart, par().Size,
+                        ionameFn, filenameFn, metadataFn);
 }
 
 END_MODULE_NAMESPACE

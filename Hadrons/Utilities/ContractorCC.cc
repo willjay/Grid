@@ -297,7 +297,11 @@ int main(int argc, char* argv[])
             std::cout << "======== Loading '" << filename << "'" << std::endl;
             
             eval.resize(size);
-            A2AVectorsIo::readEvals(filename, size, eval);
+            //A2AVectorsIo::readEvals(filename, size, eval);
+            A2AVectorsIo::loadEvalBlock(filename,
+                                        eval,
+                                        0,
+                                        size);
         }
         
         // load data

@@ -34,6 +34,7 @@ See the full license in the file "LICENSE" in the top level distribution directo
 #include <Hadrons/ModuleFactory.hpp>
 #include <Hadrons/Solver.hpp>
 #include <Hadrons/EigenPack.hpp>
+#include <Hadrons/A2AMatrix.hpp>
 #include <Hadrons/A2AVectors.hpp>
 #include <Hadrons/DilutedNoise.hpp>
 //#include <Hadrons/utils_memory.h>
@@ -55,7 +56,8 @@ public:
                                   std::string, solver,
                                   std::string, output,
                                   double, mass,
-                                  int start,
+                                  int, vstart,
+                                  int, vend,
                                   bool,        multiFile);
 };
 
@@ -694,11 +696,9 @@ void TStagNoEvalA2AVectors<FImpl, Pack>::setup(void)
     int         Ls          = env().getObjectLs(par().action);
     
     auto &epack = envGet(Pack, par().eigenPack);
-    Nl_ = epack.evec.size();
+    Nl_ = par().vend-par().vstart;
     
     envCreate(std::vector<FermionField>, getName() + "_v", 1,
-              2*Nl_, envGetGrid(FermionField));
-    envCreate(std::vector<FermionField>, getName() + "_w", 1,
               2*Nl_, envGetGrid(FermionField));
     if (Ls > 1)
     {
@@ -715,7 +715,6 @@ void TStagNoEvalA2AVectors<FImpl, Pack>::execute(void)
     std::string sub_string = (Nl_ > 0) ? "_subtract" : "";
     auto        &action    = envGet(FMat, par().action);
     auto        &v         = envGet(std::vector<FermionField>, getName() + "_v");
-    auto        &w         = envGet(std::vector<FermionField>, getName() + "_w");
     int         Ls         = env().getObjectLs(par().action);
     double      mass       = par().mass;
     
@@ -724,14 +723,18 @@ void TStagNoEvalA2AVectors<FImpl, Pack>::execute(void)
     LOG(Message) << "Computing all-to-all vectors "
     << " using eigenpack '" << par().eigenPack << "' ("
     << 2*Nl_ << " low modes) '" << std::endl;
-    int end = start + Nl_;
+
     //save for later
     std::vector<complex<double>> evalM(2*Nl_);
     
-    // Low modes
-    for (unsigned int il = par().start; il < end; il++)
+    // Low modes only, v(=w) vecs only
+    // evecs start at index = start
+    // index v vec from 0
+    
+    auto &epack  = envGet(Pack, par().eigenPack);
+    
+    for (unsigned int il = par().vstart, n=0; il < par().vend; il++, n++)
     {
-        auto &epack  = envGet(Pack, par().eigenPack);
         
         // eval of unpreconditioned Dirac op
         std::complex<double> eval(mass,sqrt(epack.eval[il]-mass*mass));
@@ -740,11 +743,11 @@ void TStagNoEvalA2AVectors<FImpl, Pack>::execute(void)
         LOG(Message) << "V vector i = " << il << " (low mode)" << std::endl;
         if (Ls == 1)
         {
-            a2a.makeLowModeV(v[2*il], epack.evec[il], eval);
-            evalM[2*il] = eval;
+            a2a.makeLowModeV(v[2*n], epack.evec[il], eval);
+            evalM[2*n] = eval;
             // construct -lambda evec
-            a2a.makeLowModeV(v[2*il+1], epack.evec[il], eval, 1);
-            evalM[2*il+1] = conjugate(eval);
+            a2a.makeLowModeV(v[2*n+1], epack.evec[il], eval, 1);
+            evalM[2*n+1] = conjugate(eval);
         }
         else
         {
@@ -762,7 +765,23 @@ void TStagNoEvalA2AVectors<FImpl, Pack>::execute(void)
         //startTimer("W I/O");
         //A2AVectorsIo::write(par().output + "_w", w, par().multiFile, vm().getTrajectory());
         //stopTimer("W I/O");
-        A2AVectorsIo::writeEvals(par().output, evalM, vm().getTrajectory());
+        //A2AVectorsIo::writeEvals(par().output, evalM, vm().getTrajectory());
+        //A2AVectorsIo::saveEvals("evals.h5", evalM, par().vstart, 2*Nl_, 2*epack.evec.size());
+        // Create a new file using the default property lists.
+        std::string dir = dirname(par().output);
+        int status = mkdir(dir);
+        if (status)
+        {
+            HADRONS_ERROR(Io, "cannot create directory '" + dir
+                          + "' ( " + std::strerror(errno) + ")");
+        }
+        std::string eval_filename = A2AVectorsIo::evalFilename(par().output,vm().getTrajectory());
+        A2AVectorsIo::initEvalFile(eval_filename,
+                                   2*epack.evec.size());// total size
+        A2AVectorsIo::saveEvalBlock(eval_filename,
+                                    evalM.data(),
+                                    2*par().vstart,// start of chunk
+                                    2*Nl_);// size of chunk saved
     }
     //printMem("End StagNoEvalA2AVectors execute() ", env().getGrid()->ThisRank());
 }

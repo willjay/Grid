@@ -171,7 +171,7 @@ public:
     };
 public:
     template <typename Field>
-    static void write(const std::string fileStem, std::vector<Field> &vec, 
+    static void write(const std::string fileStem, std::vector<Field> &vec,
                       const bool multiFile, const int trajectory = -1);
     template <typename Eval>
     static void readEvals(const std::string fileName, int size, Eval &eval);
@@ -179,10 +179,30 @@ public:
     template <typename Field>
     static void writeEvals(const std::string fileStem, std::vector<Field> &eval,
                            const int trajectory = -1);
+    
+    static inline void initEvalFile(const std::string filename,
+                                    const unsigned int ni);
+    static inline void saveEvalBlock(const std::string filename,
+                                     const ComplexD *data,
+                                     const unsigned int i,
+                                     const unsigned int blockSize);
+    static inline void loadEvalBlock(const std::string filename,
+                                     Eigen::VectorXcd &data,
+                                     const unsigned int i,
+                                     const unsigned int blockSize);
     template <typename Field>
     static void read(std::vector<Field> &vec, const std::string fileStem,
                      const bool multiFile, const int trajectory = -1);
+    
+    static inline std::string evalFilename(const std::string stem, const int traj)
+    {
+        std::string t = (traj < 0) ? "" : ("." + std::to_string(traj));
+        
+        return stem + t + ".h5";
+    }
+    
 private:
+    
     static inline std::string vecFilename(const std::string stem, const int traj, 
                                           const bool multiFile)
     {
@@ -196,12 +216,6 @@ private:
         {
             return stem + t + ".bin";
         }
-    }
-    static inline std::string evalFilename(const std::string stem, const int traj)
-    {
-        std::string t = (traj < 0) ? "" : ("." + std::to_string(traj));
-        
-        return stem + t + ".txt";
     }
 };
 
@@ -823,6 +837,127 @@ void A2AVectorsIo::writeEvals(const std::string fileStem,
     file.close();
 }
 
+
+// file allocation /////////////////////////////////////////////////////////////
+//template <typename T>
+void A2AVectorsIo::initEvalFile(const std::string eval_filename,
+                                const unsigned int ni)
+{
+#ifdef HAVE_HDF5
+    
+    try{
+        H5::H5File file(eval_filename, H5F_ACC_EXCL);
+    
+        // Create the data space for the dataset.
+        hsize_t dims[1];               // dataset dimensions
+        dims[0] = ni;
+        H5::DataSpace dataspace(1, dims);
+    
+        // Create the dataset.
+        H5::DataSet dataset = file.createDataSet("eval_dset", Hdf5Type<ComplexD>::type(), dataspace);
+    }
+    // catch failure caused by the H5File operations
+    catch(H5::FileIException error)
+    {
+        error.printErrorStack();
+        //return -1;
+    }
+    
+#else
+    HADRONS_ERROR(Implementation, "eval I/O needs HDF5 library");
+#endif
+}
+// Write blockSize chunk of evals in the specified location (i)
+// eval = m +- i lambda
+void A2AVectorsIo::saveEvalBlock(const std::string eval_filename,
+                                 const ComplexD *data,
+                                 const unsigned int i,
+                                 const unsigned int blockSize)
+{
+#ifdef HAVE_HDF5
+    // Open existing file and dataset.
+    H5::H5File file(eval_filename, H5F_ACC_RDWR);
+
+    hsize_t offset[1], count[1], stride[1], block[1], dimsm[1];
+    
+    H5::DataSet dataset = file.openDataSet("eval_dset");
+    
+    // Specify location, size, and shape of subset to write.
+    
+    offset[0] = i;
+    count[0]  = blockSize;
+    stride[0] = 1;
+    block[0] = 1;
+    
+    // Define Memory Dataspace. Get file dataspace and select
+    // a subset from the file dataspace.
+    
+    dimsm[0] = blockSize;
+    
+    H5::DataSpace memspace(1, dimsm, NULL);
+    
+    H5::DataSpace dataspace = dataset.getSpace();
+    dataspace.selectHyperslab(H5S_SELECT_SET, count, offset, stride, block);
+    
+    // Write a subset of data to the dataset, then read the
+    // entire dataset back from the file.
+    
+    dataset.write(data, Hdf5Type<ComplexD>::type(), memspace, dataspace);
+    
+#else
+    HADRONS_ERROR(Implementation, "eval I/O needs HDF5 library");
+#endif
+}
+
+// read blockSize chunk of evals in the specified location (i)
+// eval = m +- i lambda
+void A2AVectorsIo::loadEvalBlock(const std::string eval_filename,
+                                 Eigen::VectorXcd &data,
+                                 const unsigned int i,
+                                 const unsigned int blockSize)
+{
+#ifdef HAVE_HDF5
+    // Open existing file and dataset.
+    H5::H5File file(eval_filename, H5F_ACC_RDWR);
+    
+    hsize_t offset[1], count[1], stride[1], block[1], dimsm[1];
+    
+    H5::DataSet dataset = file.openDataSet("eval_dset");
+    
+    // Specify location, size, and shape of subset to write.
+    
+    offset[0] = i;
+    count[0]  = blockSize;
+    stride[0] = 1;
+    block[0] = 1;
+    
+    // Define Memory Dataspace. Get file dataspace and select
+    // a subset from the file dataspace.
+    
+    dimsm[0] = blockSize;
+    
+    H5::DataSpace memspace(1, dimsm, NULL);
+    
+    H5::DataSpace dataspace = dataset.getSpace();
+    dataspace.selectHyperslab(H5S_SELECT_SET, count, offset, stride, block);
+    
+    // Write a subset of data to the dataset, then read the
+    // entire dataset back from the file.
+    
+    H5::CompType       datatype;
+    datatype    = dataset.getCompType();
+    dataset.read(data.data(), datatype, memspace, dataspace);
+    
+    // need to divide meson field by evals, so return inverse
+    for(int i=0; i< data.size(); i++){
+        ComplexD cc= 1.0 / data[i];
+        data[i] = cc;
+    }
+    
+#else
+    HADRONS_ERROR(Implementation, "eval I/O needs HDF5 library");
+#endif
+}
 template <typename Field>
 void A2AVectorsIo::read(std::vector<Field> &vec, const std::string fileStem,
                         const bool multiFile, const int trajectory)
