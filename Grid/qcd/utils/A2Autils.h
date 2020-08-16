@@ -1637,14 +1637,229 @@ void A2Autils<FImpl>::StagMesonField(TensorType &mat,
 // KS phases in links
 // no Naik term
 //#include <Grid/qcd/action/fermion/ImprovedStaggeredFermion.h>
+//template <class FImpl>
+//template <typename TensorType>
+//void A2Autils<FImpl>::OldStagMesonFieldCC(TensorType &mat,
+//                                       //const LatticeGaugeField &Umu,
+//                                       const FermionField *lhs_wi,
+//                                       const FermionField *rhs_vj,
+//                                       std::vector<Gamma::Algebra> gammas,
+//                                       const std::vector<ComplexField > &mom,
+//                                       int orthogdim, double *t_kernel, double *t_gsum)
+//{
+//    typedef typename FImpl::SiteSpinor vobj;
+//
+//    typedef typename vobj::scalar_object sobj;
+//    typedef typename vobj::scalar_type scalar_type;
+//    typedef typename vobj::vector_type vector_type;
+//
+//    typedef iSinglet<vector_type> Singlet_v;
+//    typedef iSinglet<scalar_type> Singlet_s;
+//
+//    int Lblock = mat.dimension(3);
+//    int Rblock = mat.dimension(4);
+//
+//    GridBase *grid = lhs_wi[0].Grid();
+//
+//    const int    Nd = grid->_ndimension;
+//    const int Nsimd = grid->Nsimd();
+//
+//    int Nt     = grid->GlobalDimensions()[orthogdim];
+//    int Ngamma = gammas.size();
+//    int Nmom   = mom.size();
+//
+//    int fd=grid->_fdimensions[orthogdim];
+//    int ld=grid->_ldimensions[orthogdim];
+//    int rd=grid->_rdimensions[orthogdim];
+//
+//    // will locally sum vectors first
+//    // sum across these down to scalars
+//    // splitting the SIMD
+//    int MFrvol = rd*Lblock*Rblock*Nmom;
+//    int MFlvol = ld*Lblock*Rblock*Nmom;
+//
+//    Vector<Singlet_v > lvSum(MFrvol);
+//    Vector<Singlet_s > lsSum(MFlvol);
+//
+//    //do shift and mult outside of A2Autils
+//    // U_mu(x) right(x+mu)
+//    //FermionField Urpl(grid);
+//    //std::vector<LatticeColourMatrix> U(4,grid);
+//    //for(int mu=0;mu<Nd;mu++){
+//    //    U[mu] = PeekIndex<LorentzIndex>(Umu,mu);
+//    //}
+//
+//    int e1=    grid->_slice_nblock[orthogdim];
+//    int e2=    grid->_slice_block [orthogdim];
+//    int stride=grid->_slice_stride[orthogdim];
+//
+//    // potentially wasting cores here if local time extent too small
+//    if (t_kernel) *t_kernel = -usecond();
+//
+//    // do x,y,z dirs
+//
+//    //std::vector<FermionField> temp(Rblock, grid);
+//    //int mu;
+//    int ng=0; //doing one gamma mu (point split dir) at a time
+//    //for (int n = 0; n < Ngamma; n++) {
+//
+//        //if ( gammas[n] == Gamma::Algebra::GammaX ) mu=0;
+//        //else if ( gammas[n] == Gamma::Algebra::GammaY ) mu=1;
+//        //else if ( gammas[n] == Gamma::Algebra::GammaZ ) mu=2;
+//        //else {
+//          //std::cout << gammas[n] << " not implemented for staggered fermion conserverd current meson field" << std::endl;
+//          //assert(0);
+//        //}
+//
+//        // Re-initialize working variables before starting on a new gamma
+//        thread_for(r, MFrvol,{
+//            lvSum[r] = Zero();
+//        });
+//        thread_for(r, MFlvol,{
+//            lsSum[r]=scalar_type(0.0);
+//        });
+//
+//
+//        // do shift outside of A2AUtils.h
+//        //std::cout << GridLogMessage << "Cshift * Umu " << std::endl;
+//        //cshift must be outside thread loop
+//        //for(int j=0;j<Rblock;j++)
+//        //   temp[j] = U[mu]*Cshift(rhs_vj[j], mu, 1);
+//        //std::cout << GridLogMessage << "Cshift * Umu finished " << std::endl;
+//
+//        thread_for(r, rd,{
+//
+//            int so=r*grid->_ostride[orthogdim]; // base offset for start of plane
+//
+//            for(int n=0;n<e1;n++){
+//                for(int b=0;b<e2;b++){
+//
+//                    int ss= so+n*stride+b;
+//                    for(int i=0;i<Lblock;i++){
+//
+//                        auto wi_v  = lhs_wi[i].View();
+//                        auto left = conjugate(wi_v[ss]);
+//
+//                        for(int j=0;j<Rblock;j++){
+//
+//                            //Urpl = temp[j];
+//
+//                            auto vjplU_v = rhs_vj[j].View();
+//                            //auto vjplU = temp[j].View();
+//                            auto right = vjplU_v[ss];
+//
+//                            Singlet_v vv;
+//                            vv()()() = left()()(0) * right()()(0)
+//                                     + left()()(1) * right()()(1)
+//                                     + left()()(2) * right()()(2);
+//
+//                            // After getting the sitewise product do the mom phase loop
+//                            int base = Nmom*i+Nmom*Lblock*j+Nmom*Lblock*Rblock*r;
+//                            for ( int m=0;m<Nmom;m++){
+//                                int idx = m+base;
+//                                auto mom_phase_v = mom[m].View();
+//                                auto phase = mom_phase_v[ss];
+//                                mac(&lvSum[idx],&vv,&phase);
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        });
+//
+//
+//        // Sum across simd lanes in the plane, breaking out orthog dir.
+//        thread_for(rt, rd,{
+//            //parallel_for(int rt=0;rt<rd;rt++){
+//            Coordinate icoor(Nd);
+//            //std::vector<int> icoor(Nd);
+//            //std::vector<Singlet_s> extracted(Nsimd);
+//            ExtractBuffer<Singlet_s> extracted(Nsimd);
+//
+//            for(int i=0;i<Lblock;i++){
+//                for(int j=0;j<Rblock;j++){
+//                    for(int m=0;m<Nmom;m++){
+//
+//                        int ij_rdx = m+Nmom*i+Nmom*Lblock*j+Nmom*Lblock*Rblock*rt;
+//
+//                        extract(lvSum[ij_rdx],extracted);
+//
+//                        for(int idx=0;idx<Nsimd;idx++){
+//
+//                            grid->iCoorFromIindex(icoor,idx);
+//
+//                            int ldx    = rt+icoor[orthogdim]*rd;
+//
+//                            int ij_ldx = m+Nmom*i+Nmom*Lblock*j+Nmom*Lblock*Rblock*ldx;
+//
+//                            lsSum[ij_ldx]=lsSum[ij_ldx]+extracted[idx];
+//
+//                        }
+//                    }}}
+//        });
+//        if (t_kernel) *t_kernel += usecond();
+//        assert(mat.dimension(0) == Nmom);
+//        assert(mat.dimension(1) == Ngamma);
+//        assert(mat.dimension(2) == Nt);
+//
+//        // ld loop and local only??
+//        int pd = grid->_processors[orthogdim];
+//        int pc = grid->_processor_coor[orthogdim];
+//        thread_for_collapse(2,lt,ld,{
+//
+//            for(int pt=0;pt<pd;pt++){
+//                int t = lt + pt*ld;
+//                if (pt == pc){
+//                    for(int i=0;i<Lblock;i++){
+//                        for(int j=0;j<Rblock;j++){
+//                            for(int m=0;m<Nmom;m++){
+//                                int ij_dx = m+Nmom*i + Nmom*Lblock * j + Nmom*Lblock * Rblock * lt;
+//                                mat(m,ng,t,i,j) = lsSum[ij_dx];
+//                            }
+//                        }
+//                    }
+//                } else {
+//                    const scalar_type zz(0.0);
+//                    for(int i=0;i<Lblock;i++){
+//                        for(int j=0;j<Rblock;j++){
+//                            for(int m=0;m<Nmom;m++){
+//                                mat(m,ng,t,i,j) =zz;
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        });
+//    //} // end loop on gamma
+//    ////////////////////////////////////////////////////////////////////
+//    // This global sum is taking as much as 50% of time on 16 nodes
+//    // Vector size is 7 x 16 x 32 x 16 x 16 x sizeof(complex) = 2MB - 60MB depending on volume
+//    // Healthy size that should suffice
+//    ////////////////////////////////////////////////////////////////////
+//    if (t_gsum) *t_gsum = -usecond();
+//    grid->GlobalSumVector(&mat(0,0,0,0,0),Nmom*Ngamma*Nt*Lblock*Rblock);
+//    if (t_gsum) *t_gsum += usecond();
+//}
+
+
+// Conserved vector current for staggered mesons
+// gamma_{x,y,z} implemented for now.
+// links could be thin or fat.
+// KS phases in links
+// no Naik term
+// use only +lambda evecs, add minus signs for -lambda matrix elements
+// the pattern for 2x2 block is
+//  a -b
+//  b -a
+// where +lambda evec is always ordered first, i.e., +lam1, -lam1, +lam2, -lam2, ...
+//
 template <class FImpl>
 template <typename TensorType>
 void A2Autils<FImpl>::StagMesonFieldCC(TensorType &mat,
-                                       //const LatticeGaugeField &Umu,
                                        const FermionField *lhs_wi,
                                        const FermionField *rhs_vj,
                                        std::vector<Gamma::Algebra> gammas,
-                                       const std::vector<ComplexField > &mom,
+                                       const std::vector<ComplexField> &mom,
                                        int orthogdim, double *t_kernel, double *t_gsum)
 {
     typedef typename FImpl::SiteSpinor vobj;
@@ -1681,14 +1896,6 @@ void A2Autils<FImpl>::StagMesonFieldCC(TensorType &mat,
     Vector<Singlet_v > lvSum(MFrvol);
     Vector<Singlet_s > lsSum(MFlvol);
     
-    //do shift and mult outside of A2Autils
-    // U_mu(x) right(x+mu)
-    //FermionField Urpl(grid);
-    //std::vector<LatticeColourMatrix> U(4,grid);
-    //for(int mu=0;mu<Nd;mu++){
-    //    U[mu] = PeekIndex<LorentzIndex>(Umu,mu);
-    //}
-    
     int e1=    grid->_slice_nblock[orthogdim];
     int e2=    grid->_slice_block [orthogdim];
     int stride=grid->_slice_stride[orthogdim];
@@ -1696,140 +1903,160 @@ void A2Autils<FImpl>::StagMesonFieldCC(TensorType &mat,
     // potentially wasting cores here if local time extent too small
     if (t_kernel) *t_kernel = -usecond();
     
-    // do x,y,z dirs
-
-    //std::vector<FermionField> temp(Rblock, grid);
-    //int mu;
     int ng=0; //doing one gamma mu (point split dir) at a time
-    //for (int n = 0; n < Ngamma; n++) {
-
-        //if ( gammas[n] == Gamma::Algebra::GammaX ) mu=0;
-        //else if ( gammas[n] == Gamma::Algebra::GammaY ) mu=1;
-        //else if ( gammas[n] == Gamma::Algebra::GammaZ ) mu=2;
-        //else {
-          //std::cout << gammas[n] << " not implemented for staggered fermion conserverd current meson field" << std::endl;
-          //assert(0);
-        //}
-
-        // Re-initialize working variables before starting on a new gamma
-        thread_for(r, MFrvol,{
-            lvSum[r] = Zero();
-        });
-        thread_for(r, MFlvol,{
-            lsSum[r]=scalar_type(0.0);
-        });
-       
- 
-        // do shift outside of A2AUtils.h
-        //std::cout << GridLogMessage << "Cshift * Umu " << std::endl;
-        //cshift must be outside thread loop
-        //for(int j=0;j<Rblock;j++)
-        //   temp[j] = U[mu]*Cshift(rhs_vj[j], mu, 1);
-        //std::cout << GridLogMessage << "Cshift * Umu finished " << std::endl;
-
-        thread_for(r, rd,{
-            
-            int so=r*grid->_ostride[orthogdim]; // base offset for start of plane
-            
-            for(int n=0;n<e1;n++){
-                for(int b=0;b<e2;b++){
+    
+    // Re-initialize working variables before starting on a new gamma
+    thread_for(r, MFrvol,{
+        lvSum[r] = Zero();
+    });
+    thread_for(r, MFlvol,{
+        lsSum[r]=scalar_type(0.0);
+    });
+    
+    Lattice<iScalar<vInteger> > x(grid); LatticeCoordinate(x,0);
+    Lattice<iScalar<vInteger> > y(grid); LatticeCoordinate(y,1);
+    Lattice<iScalar<vInteger> > z(grid); LatticeCoordinate(z,2);
+    Lattice<iScalar<vInteger> > t(grid); LatticeCoordinate(t,3);
+    Lattice<iScalar<vInteger> > sum(grid); sum=x+y+z+t;
+    ComplexField sign(grid);
+    ComplexD one = 1.0;
+    sign = one;
+    sign = where( mod(sum, 2)==(Integer)0, sign, -sign);
+    
+    thread_for(r, rd,{
+        
+        int so=r*grid->_ostride[orthogdim]; // base offset for start of plane
+        
+        for(int n=0;n<e1;n++){
+            for(int b=0;b<e2;b++){
+                
+                int ss= so+n*stride+b;
+                for(int i=0;i<Lblock;i+=2){
                     
-                    int ss= so+n*stride+b;
-                    for(int i=0;i<Lblock;i++){
+                    auto wi_v  = lhs_wi[i/2].View();
+                    auto left = conjugate(wi_v[ss]);
+                    
+                    for(int j=0;j<Rblock;j+=2){
                         
-                        auto wi_v  = lhs_wi[i].View();
-                        auto left = conjugate(wi_v[ss]);
+                        auto vjplU_v = rhs_vj[j/2].View();
+                        auto right = vjplU_v[ss];
                         
-                        for(int j=0;j<Rblock;j++){
-
-                            //Urpl = temp[j];
-                            
-                            auto vjplU_v = rhs_vj[j].View();
-                            //auto vjplU = temp[j].View();
-                            auto right = vjplU_v[ss];
-                            
-                            Singlet_v vv;
-                            vv()()() = left()()(0) * right()()(0)
-                                     + left()()(1) * right()()(1)
-                                     + left()()(2) * right()()(2);
-                            
-                            // After getting the sitewise product do the mom phase loop
-                            int base = Nmom*i+Nmom*Lblock*j+Nmom*Lblock*Rblock*r;
-                            for ( int m=0;m<Nmom;m++){
-                                int idx = m+base;
-                                auto mom_phase_v = mom[m].View();
-                                auto phase = mom_phase_v[ss];
-                                mac(&lvSum[idx],&vv,&phase);
-                            }
+                        Singlet_v vv;
+                        vv()()() = left()()(0) * right()()(0)
+                                 + left()()(1) * right()()(1)
+                                 + left()()(2) * right()()(2);
+                        
+                        // After getting the sitewise product do the mom phase loop
+                        // ++ and -- matrix elements 00 and 11
+                        int base = Nmom*i+Nmom*Lblock*j+Nmom*Lblock*Rblock*r;
+                        for ( int m=0;m<Nmom;m++){
+                            int idx = m+base;
+                            auto mom_phase_v = mom[m].View();
+                            auto phase = mom_phase_v[ss];
+                            mac(&lvSum[idx],&vv,&phase);
+                        }
+                        // +- and -+ matrix elements 01 and 10
+                        // After getting the sitewise product do the mom phase loop
+                        base = Nmom*i+Nmom*Lblock*(j+1)+Nmom*Lblock*Rblock*r;
+                        for ( int m=0;m<Nmom;m++){
+                            int idx = m+base;
+                            auto mom_phase_v = mom[m].View();
+                            auto sign_v = sign.View();
+                            auto phase = mom_phase_v[ss] * sign_v[ss];
+                            mac(&lvSum[idx],&vv,&phase);
                         }
                     }
                 }
             }
-        });
+        }
+    });
+    
+    
+    // Sum across simd lanes in the plane, breaking out orthog dir.
+    thread_for(rt, rd,{
+        Coordinate icoor(Nd);
+        ExtractBuffer<Singlet_s> extracted(Nsimd);
         
+        for(int i=0;i<Lblock;i+=2){
+            for(int j=0;j<Rblock;j+=2){
+                
+                for(int m=0;m<Nmom;m++){
+                    
+                    int ij_rdx = m+Nmom*i+Nmom*Lblock*j+Nmom*Lblock*Rblock*rt;
+                    
+                    extract(lvSum[ij_rdx],extracted);
+                    
+                    for(int idx=0;idx<Nsimd;idx++){
+                        
+                        grid->iCoorFromIindex(icoor,idx);
+                        
+                        int ldx    = rt+icoor[orthogdim]*rd;
+                        
+                        int ij_ldx = m+Nmom*i+Nmom*Lblock*j+Nmom*Lblock*Rblock*ldx;
+                        
+                        lsSum[ij_ldx]=lsSum[ij_ldx]+extracted[idx];
+                    }
+                }
+            }
+            for(int j=1;j<Rblock;j+=2){
+                
+                for(int m=0;m<Nmom;m++){
+                    
+                    int ij_rdx = m+Nmom*i+Nmom*Lblock*j+Nmom*Lblock*Rblock*rt;
+                    
+                    extract(lvSum[ij_rdx],extracted);
+                    
+                    for(int idx=0;idx<Nsimd;idx++){
+                        
+                        grid->iCoorFromIindex(icoor,idx);
+                        
+                        int ldx    = rt+icoor[orthogdim]*rd;
+                        
+                        int ij_ldx = m+Nmom*i+Nmom*Lblock*j+Nmom*Lblock*Rblock*ldx;
+                        
+                        lsSum[ij_ldx]=lsSum[ij_ldx]+extracted[idx];
+                    }
+                }
+            }
+        }
+    });
+    if (t_kernel) *t_kernel += usecond();
+    assert(mat.dimension(0) == Nmom);
+    assert(mat.dimension(1) == Ngamma);
+    assert(mat.dimension(2) == Nt);
+    
+    // ld loop and local only??
+    int pd = grid->_processors[orthogdim];
+    int pc = grid->_processor_coor[orthogdim];
+    thread_for_collapse(2,lt,ld,{
         
-        // Sum across simd lanes in the plane, breaking out orthog dir.
-        thread_for(rt, rd,{
-            //parallel_for(int rt=0;rt<rd;rt++){
-            Coordinate icoor(Nd);
-            //std::vector<int> icoor(Nd);
-            //std::vector<Singlet_s> extracted(Nsimd);
-            ExtractBuffer<Singlet_s> extracted(Nsimd);
-            
-            for(int i=0;i<Lblock;i++){
-                for(int j=0;j<Rblock;j++){
-                    for(int m=0;m<Nmom;m++){
-                        
-                        int ij_rdx = m+Nmom*i+Nmom*Lblock*j+Nmom*Lblock*Rblock*rt;
-                        
-                        extract(lvSum[ij_rdx],extracted);
-                        
-                        for(int idx=0;idx<Nsimd;idx++){
-                            
-                            grid->iCoorFromIindex(icoor,idx);
-                            
-                            int ldx    = rt+icoor[orthogdim]*rd;
-                            
-                            int ij_ldx = m+Nmom*i+Nmom*Lblock*j+Nmom*Lblock*Rblock*ldx;
-                            
-                            lsSum[ij_ldx]=lsSum[ij_ldx]+extracted[idx];
-                            
-                        }
-                    }}}
-        });
-        if (t_kernel) *t_kernel += usecond();
-        assert(mat.dimension(0) == Nmom);
-        assert(mat.dimension(1) == Ngamma);
-        assert(mat.dimension(2) == Nt);
-        
-        // ld loop and local only??
-        int pd = grid->_processors[orthogdim];
-        int pc = grid->_processor_coor[orthogdim];
-        thread_for_collapse(2,lt,ld,{
-            
-            for(int pt=0;pt<pd;pt++){
-                int t = lt + pt*ld;
-                if (pt == pc){
-                    for(int i=0;i<Lblock;i++){
-                        for(int j=0;j<Rblock;j++){
-                            for(int m=0;m<Nmom;m++){
-                                int ij_dx = m+Nmom*i + Nmom*Lblock * j + Nmom*Lblock * Rblock * lt;
-                                mat(m,ng,t,i,j) = lsSum[ij_dx];
-                            }
+        for(int pt=0;pt<pd;pt++){
+            int t = lt + pt*ld;
+            if (pt == pc){
+                for(int i=0;i<Lblock;i+=2){
+                    for(int j=0;j<Rblock;j+=2){
+                        for(int m=0;m<Nmom;m++){
+                            int ij_dx = m+Nmom*i + Nmom*Lblock*j + Nmom*Lblock*Rblock*lt;
+                            mat(m,ng,t,i,j) = lsSum[ij_dx];
+                            mat(m,ng,t,i+1,j+1)=mat(m,ng,t,i,j);
+                            ij_dx = m+Nmom*i + Nmom*Lblock*(j+1) + Nmom*Lblock*Rblock*lt;
+                            mat(m,ng,t,i,j+1) = lsSum[ij_dx];
+                            mat(m,ng,t,i+1,j) = -mat(m,ng,t,i,j+1);
                         }
                     }
-                } else {
-                    const scalar_type zz(0.0);
-                    for(int i=0;i<Lblock;i++){
-                        for(int j=0;j<Rblock;j++){
-                            for(int m=0;m<Nmom;m++){
-                                mat(m,ng,t,i,j) =zz;
-                            }
+                }
+            } else {
+                const scalar_type zz(0.0);
+                for(int i=0;i<Lblock;i++){
+                    for(int j=0;j<Rblock;j++){
+                        for(int m=0;m<Nmom;m++){
+                            mat(m,ng,t,i,j) =zz;
                         }
                     }
                 }
             }
-        }); 
+        }
+    });
     //} // end loop on gamma
     ////////////////////////////////////////////////////////////////////
     // This global sum is taking as much as 50% of time on 16 nodes

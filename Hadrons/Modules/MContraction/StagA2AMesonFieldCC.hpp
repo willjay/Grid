@@ -99,15 +99,15 @@ public:
     
     virtual double flops(const unsigned int blockSizei, const unsigned int blockSizej)
     {
-        // needs to be updated for staggered
-        return vol_*(2*8.0+6.0+8.0*mom_.size())*blockSizei*blockSizej*gamma_.size();
+        // updated for staggered
+        return vol_*(22.0+6.0*mom_.size())*blockSizei*blockSizej;
     }
 
     virtual double bytes(const unsigned int blockSizei, const unsigned int blockSizej)
     {
-        // 3.0 ? for colors
+        // 3.0 ? for colors. updated for staggered
         return vol_*(3.0*sizeof(T))*blockSizei*blockSizej
-               +  vol_*(2.0*sizeof(T)*mom_.size())*blockSizei*blockSizej*gamma_.size();
+               +  vol_*(2.0*sizeof(T)*mom_.size())*blockSizei*blockSizej;
     }
 private:
     //const LatticeGaugeField &U_;
@@ -144,7 +144,6 @@ private:
     std::string                        momphName_;
     std::vector<Gamma::Algebra>        gamma_;
     std::vector<std::vector<Real>>     mom_;
-    //LatticeGaugeField                  U_;
 };
 
 MODULE_REGISTER(StagA2AMesonFieldCC, ARG(TStagA2AMesonFieldCC<STAGIMPL>), MContraction);
@@ -261,8 +260,8 @@ void TStagA2AMesonFieldCC<FImpl>::execute(void)
     {
         LOG(Message) << "  " << g << std::endl;
     }
-    LOG(Message) << "Meson field size: " << nt << "*" << N_i << "*" << N_j 
-                 << " (filesize " << sizeString(nt*N_i*N_j*sizeof(HADRONS_A2AM_IO_TYPE)) 
+    LOG(Message) << "Meson field size: " << nt << "*" << 2*N_i << "*" << 2*N_j
+                 << " (filesize " << sizeString(nt*2*N_i*2*N_j*sizeof(HADRONS_A2AM_IO_TYPE))
                  << "/momentum/bilinear)" << std::endl;
 
     auto &ph = envGet(std::vector<ComplexField>, momphName_);

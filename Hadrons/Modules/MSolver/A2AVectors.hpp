@@ -775,13 +775,16 @@ void TStagNoEvalA2AVectors<FImpl, Pack>::execute(void)
             HADRONS_ERROR(Io, "cannot create directory '" + dir
                           + "' ( " + std::strerror(errno) + ")");
         }
-        std::string eval_filename = A2AVectorsIo::evalFilename(par().output,vm().getTrajectory());
-        A2AVectorsIo::initEvalFile(eval_filename,
-                                   2*epack.evec.size());// total size
-        A2AVectorsIo::saveEvalBlock(eval_filename,
-                                    evalM.data(),
-                                    2*par().vstart,// start of chunk
-                                    2*Nl_);// size of chunk saved
+        if ( epack.evec[0].Grid()->IsBoss() ) {
+            
+            std::string eval_filename = A2AVectorsIo::evalFilename(par().output,vm().getTrajectory());
+            A2AVectorsIo::initEvalFile(eval_filename,
+                                       2*epack.evec.size());// total size
+            A2AVectorsIo::saveEvalBlock(eval_filename,
+                                        evalM.data(),
+                                        2*par().vstart,// start of chunk
+                                        2*Nl_);// size of chunk saved
+        }
     }
     //printMem("End StagNoEvalA2AVectors execute() ", env().getGrid()->ThisRank());
 }
